@@ -20,6 +20,7 @@ module.exports = {
     name: 'claude-mem-worker',
     script: './plugin/scripts/worker-service.cjs',
     interpreter: 'node',
+    node_args: process.platform === 'win32' ? '--import ./plugin/loaders/patch-spawn-windows.mjs' : '',
     instances: 1,
     exec_mode: 'fork',
     autorestart: true,

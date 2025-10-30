@@ -59,7 +59,7 @@ async function buildHooks() {
       format: 'cjs',
       outfile: `${hooksDir}/${WORKER_SERVICE.name}.cjs`,
       minify: true,
-      external: ['better-sqlite3'],
+      external: ['better-sqlite3', '@anthropic-ai/claude-agent-sdk'],
       define: {
         '__DEFAULT_PACKAGE_VERSION__': `"${version}"`
       },
@@ -128,6 +128,18 @@ async function buildHooks() {
     fs.chmodSync(`${hooksDir}/${SEARCH_SERVER.name}.js`, 0o755);
     const searchStats = fs.statSync(`${hooksDir}/${SEARCH_SERVER.name}.js`);
     console.log(`✓ search-server built (${(searchStats.size / 1024).toFixed(2)} KB)`);
+
+    // Copy runtime patch for Windows
+    console.log(`\n📋 Copying Windows spawn patch...`);
+    const loaderDir = 'plugin/loaders';
+
+    if (!fs.existsSync(loaderDir)) {
+      fs.mkdirSync(loaderDir, { recursive: true });
+    }
+
+    // Copy spawn patch
+    fs.copyFileSync('src/loaders/patch-spawn-windows.mjs', `${loaderDir}/patch-spawn-windows.mjs`);
+    console.log(`✓ patch-spawn-windows.mjs copied`);
 
     console.log('\n✅ All hooks, worker service, and search server built successfully!');
     console.log(`   Output: ${hooksDir}/`);
