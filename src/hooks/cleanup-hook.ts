@@ -76,6 +76,33 @@ async function cleanupHook(input?: SessionEndInput): Promise<void> {
 
   db.close();
 
+  // Abort SDK agent for terminal reasons (not 'clear' which might resume)
+  if (reason !== 'clear' && session.worker_port) {
+    console.error('[claude-mem cleanup] Aborting SDK agent', { reason, worker_port: session.worker_port });
+
+    try {
+      const workerUrl = `http://127.0.0.1:${session.worker_port}/sessions/${session.id}`;
+      const response = await fetch(workerUrl, {
+        method: 'DELETE',
+        signal: AbortSignal.timeout(5000)
+      });
+
+      if (response.ok) {
+        console.error('[claude-mem cleanup] ✓ SDK agent aborted successfully');
+      } else {
+        const errorText = await response.text();
+        console.error('[claude-mem cleanup] Failed to abort agent:', errorText);
+      }
+    } catch (error: any) {
+      // Worker might be down - not critical since we marked DB completed
+      console.error('[claude-mem cleanup] Could not reach worker to abort agent:', error.message);
+    }
+  } else if (reason === 'clear') {
+    console.error('[claude-mem cleanup] Preserving SDK agent for potential /resume (reason=clear)');
+  } else if (!session.worker_port) {
+    console.error('[claude-mem cleanup] No worker_port - skipping agent abort (legacy session?)');
+  }
+
   console.error('[claude-mem cleanup] Cleanup completed successfully');
   console.log('{"continue": true, "suppressOutput": true}');
   process.exit(0);
