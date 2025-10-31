@@ -19,6 +19,7 @@ module.exports = {
   apps: [{
     name: 'claude-mem-worker',
     script: './plugin/scripts/worker-service.cjs',
+    cwd: __dirname, // Ensure node_modules resolution works for better-sqlite3
     interpreter: 'node',
     node_args: process.platform === 'win32' ? '--import ./plugin/loaders/patch-spawn-windows.mjs' : '',
     instances: 1,
