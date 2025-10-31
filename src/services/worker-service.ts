@@ -13,13 +13,16 @@ import type { SDKSession } from '../sdk/prompts.js';
 import { logger } from '../utils/logger.js';
 import { ensureAllDataDirs } from '../shared/paths.js';
 import { execSync } from 'child_process';
+import { join } from 'path';
+import { existsSync } from 'fs';
 
 const MODEL = process.env.CLAUDE_MEM_MODEL || 'claude-sonnet-4-5';
 const DISALLOWED_TOOLS = ['Glob', 'Grep', 'ListMcpResourcesTool', 'WebSearch'];
 const FIXED_PORT = parseInt(process.env.CLAUDE_MEM_WORKER_PORT || '37777', 10);
 
 /**
- * Find Claude Code executable path using which (Unix/Mac) or where (Windows)
+ * Find Claude Code executable path
+ * On Windows, finds the actual cli.js file instead of wrapper scripts
  */
 function findClaudePath(): string {
   try {
@@ -28,19 +31,33 @@ function findClaudePath(): string {
       return process.env.CLAUDE_CODE_PATH;
     }
 
-    // Use which on Unix/Mac, where on Windows
-    const command = process.platform === 'win32' ? 'where claude' : 'which claude';
-    const result = execSync(command, { encoding: 'utf8' }).trim();
+    if (process.platform === 'win32') {
+      // On Windows, find the cli.js file directly
+      // npm global packages are in: C:\Users\<user>\AppData\Roaming\npm\node_modules
+      const npmPrefix = execSync('npm config get prefix', {
+        encoding: 'utf8',
+        windowsHide: true
+      }).trim();
 
-    // On Windows, 'where' returns multiple lines if there are multiple matches, take the first
-    const path = result.split('\n')[0].trim();
+      const cliJsPath = join(npmPrefix, 'node_modules', '@anthropic-ai', 'claude-code', 'cli.js');
 
-    if (!path) {
-      throw new Error('Claude executable not found in PATH');
+      if (!existsSync(cliJsPath)) {
+        throw new Error(`Claude Code cli.js not found at: ${cliJsPath}`);
+      }
+
+      logger.info('SYSTEM', `✓ Found Claude Code cli.js: ${cliJsPath}`);
+      return cliJsPath;
+    } else {
+      // On Unix/Mac, use which to find the executable
+      const result = execSync('which claude', { encoding: 'utf8' }).trim();
+
+      if (!result) {
+        throw new Error('Claude executable not found in PATH');
+      }
+
+      logger.info('SYSTEM', `Found Claude executable: ${result}`);
+      return result;
     }
-
-    logger.info('SYSTEM', `Found Claude executable: ${path}`);
-    return path;
   } catch (error: any) {
     logger.failure('SYSTEM', 'Failed to find Claude executable', {}, error);
     throw new Error('Claude Code executable not found. Please ensure claude is in your PATH or set CLAUDE_CODE_PATH environment variable.');
